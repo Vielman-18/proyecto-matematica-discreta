@@ -154,8 +154,199 @@ void combinaciones() {
 }
 
 // ---------- GRAFOS ----------
+const int MAXV = 12;          // maximo de vertices
+const int INF = INT_MAX;
+
+struct Grafo {
+    int n;                        // cantidad de vertices (numerados de 1 a n)
+    bool dirigido;
+    int peso[MAXV + 1][MAXV + 1]; // 0 = no hay arista
+};
+
+void leerGrafo(Grafo& g) {
+    g.n = leerEntero("Cantidad de vertices (2 a 12): ", 2, MAXV);
+    int tipo = leerEntero("Tipo de grafo (1 = No dirigido, 2 = Dirigido): ", 1, 2);
+    g.dirigido = (tipo == 2);
+
+    for (int i = 0; i <= MAXV; i++)
+        for (int j = 0; j <= MAXV; j++)
+            g.peso[i][j] = 0;
+
+    int maxAristas = g.dirigido ? g.n * (g.n - 1) : g.n * (g.n - 1) / 2;
+    int m = leerEntero("Cantidad de aristas (1 a " + to_string(maxAristas) + "): ", 1, maxAristas);
+
+    cout << "\nIngrese cada arista: origen, destino y peso (el peso debe ser mayor a 0).\n";
+    int i = 1;
+    while (i <= m) {
+        cout << "\nArista " << i << " de " << m << ":\n";
+        int o = leerEntero("  Vertice origen (1 a " + to_string(g.n) + "): ", 1, g.n);
+        int d = leerEntero("  Vertice destino (1 a " + to_string(g.n) + "): ", 1, g.n);
+        if (o == d) {
+            cout << "  Un vertice no puede conectarse consigo mismo. Intente de nuevo.\n";
+            continue;
+        }
+        if (g.peso[o][d] != 0) {
+            cout << "  Esa arista ya fue ingresada. Intente de nuevo.\n";
+            continue;
+        }
+        int p = leerEntero("  Peso (1 a 1000): ", 1, 1000);
+        g.peso[o][d] = p;
+        if (!g.dirigido) g.peso[d][o] = p;
+        i++;
+    }
+}
+
+void mostrarGrafo(const Grafo& g) {
+    cout << "\nMatriz de pesos (0 = sin arista):\n      ";
+    for (int j = 1; j <= g.n; j++) {
+        cout << j << "\t";
+    }
+    cout << "\n";
+    for (int i = 1; i <= g.n; i++) {
+        cout << "  " << i << " | ";
+        for (int j = 1; j <= g.n; j++) cout << g.peso[i][j] << "\t";
+        cout << "\n";
+    }
+}
+
+void mostrarRuta(const int ruta[], int largo, int pesoTotal) {
+    cout << "Ruta: ";
+    for (int i = 0; i < largo; i++) {
+        cout << ruta[i];
+        if (i < largo - 1) cout << " -> ";
+    }
+    cout << "\nPeso total: " << pesoTotal << "\n";
+}
+
+// ----- Ruta mas corta (algoritmo de Dijkstra) -----
+void rutaMasCorta() {
+    cout << "\n--- RUTA MAS CORTA (algoritmo de Dijkstra) ---\n";
+    Grafo g;
+    leerGrafo(g);
+    mostrarGrafo(g);
+
+    int origen = leerEntero("\nVertice de origen: ", 1, g.n);
+    int destino;
+    do {
+        destino = leerEntero("Vertice de destino: ", 1, g.n);
+        if (destino == origen) cout << "El destino debe ser distinto del origen.\n";
+    } while (destino == origen);
+
+    int dist[MAXV + 1], previo[MAXV + 1];
+    bool visitado[MAXV + 1];
+    for (int i = 1; i <= g.n; i++) {
+        dist[i] = INF;
+        previo[i] = 0;
+        visitado[i] = false;
+    }
+    dist[origen] = 0;
+
+    for (int paso = 1; paso <= g.n; paso++) {
+        int u = 0;
+        for (int v = 1; v <= g.n; v++)
+            if (!visitado[v] && dist[v] != INF && (u == 0 || dist[v] < dist[u])) u = v;
+        if (u == 0) break;
+        visitado[u] = true;
+
+        for (int v = 1; v <= g.n; v++) {
+            if (g.peso[u][v] > 0 && dist[u] + g.peso[u][v] < dist[v]) {
+                dist[v] = dist[u] + g.peso[u][v];
+                previo[v] = u;
+            }
+        }
+    }
+
+    if (dist[destino] == INF) {
+        cout << "\nNo existe ruta entre " << origen << " y " << destino << ".\n";
+        return;
+    }
+
+    // reconstruir la ruta de atras hacia adelante
+    int ruta[MAXV + 1], largo = 0;
+    for (int v = destino; v != 0; v = previo[v]) ruta[largo++] = v;
+    for (int i = 0; i < largo / 2; i++) {
+        int tmp = ruta[i];
+        ruta[i] = ruta[largo - 1 - i];
+        ruta[largo - 1 - i] = tmp;
+    }
+
+    cout << "\nRESULTADO - Ruta mas corta de " << origen << " a " << destino << "\n";
+    mostrarRuta(ruta, largo, dist[destino]);
+}
+
+// ----- Ruta mas larga (busqueda exhaustiva de rutas simples) -----
+struct BusquedaLarga {
+    int mejorPeso;
+    int mejorLargo;
+    int mejor[MAXV + 1];
+    int actual[MAXV + 1];
+    bool usado[MAXV + 1];
+    int rutasEvaluadas;
+};
+
+void buscarLarga(const Grafo& g, BusquedaLarga& b, int u, int destino, int pesoAct, int largo) {
+    b.actual[largo - 1] = u;
+    if (u == destino) {
+        b.rutasEvaluadas++;
+        if (pesoAct > b.mejorPeso) {
+            b.mejorPeso = pesoAct;
+            b.mejorLargo = largo;
+            for (int i = 0; i < largo; i++) b.mejor[i] = b.actual[i];
+        }
+        return;
+    }
+    b.usado[u] = true;
+    for (int v = 1; v <= g.n; v++)
+        if (g.peso[u][v] > 0 && !b.usado[v])
+            buscarLarga(g, b, v, destino, pesoAct + g.peso[u][v], largo + 1);
+    b.usado[u] = false;
+}
+
+void rutaMasLarga() {
+    cout << "\n--- RUTA MAS LARGA (sin repetir vertices) ---\n";
+    Grafo g;
+    leerGrafo(g);
+    mostrarGrafo(g);
+
+    int origen = leerEntero("\nVertice de origen: ", 1, g.n);
+    int destino;
+    do {
+        destino = leerEntero("Vertice de destino: ", 1, g.n);
+        if (destino == origen) cout << "El destino debe ser distinto del origen.\n";
+    } while (destino == origen);
+
+    BusquedaLarga b;
+    b.mejorPeso = -1;
+    b.mejorLargo = 0;
+    b.rutasEvaluadas = 0;
+    for (int i = 0; i <= MAXV; i++) b.usado[i] = false;
+
+    buscarLarga(g, b, origen, destino, 0, 1);
+
+    if (b.mejorPeso < 0) {
+        cout << "\nNo existe ruta entre " << origen << " y " << destino << ".\n";
+        return;
+    }
+
+    cout << "\nSe evaluaron " << b.rutasEvaluadas << " rutas posibles.\n";
+    cout << "\nRESULTADO - Ruta mas larga de " << origen << " a " << destino << "\n";
+    mostrarRuta(b.mejor, b.mejorLargo, b.mejorPeso);
+}
+
 void grafos() {
-    cout << "\n[Grafos] En construccion...\n";
+    int op;
+    do {
+        cout << "\n===== GRAFOS =====\n";
+        cout << "1. Ruta mas corta\n";
+        cout << "2. Ruta mas larga\n";
+        cout << "3. Volver al menu principal\n";
+        op = leerEntero("Elija una opcion: ", 1, 3);
+
+        switch (op) {
+            case 1: rutaMasCorta(); break;
+            case 2: rutaMasLarga(); break;
+        }
+    } while (op != 3);
 }
 
 int main() {
